@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytiq-ssgpipe"
+version = "0.1.0"
+description = "PyTIQ Student/Subject/Grade Reporting Data Pipeline (workstream E-2, ssgpipe) — connectors, transformation, data quality checks, and the orchestration runner."
+requires-python = ">=3.12"
+readme = "README.md"
+license = { text = "Proprietary" }
+dependencies = [
+    # Data handling — matches Sheron/Kevin/Madhushika/Pradeep's actual imports
+    # (pandas DataFrames throughout; pyarrow + parquet in the sink connector).
+    "pandas>=2.1,<3.1",
+    "pyarrow>=17.0,<26.0",
+    # Schema/config models — imported by both the source and sink connectors
+    # (pydantic.BaseModel/Field).
+    "pydantic>=2.6,<3.0",
+    # ADLS Gen2 sink connector auth/SDK — imported lazily inside
+    # parquet_partition_sink_connector.py (DefaultAzureCredential,
+    # DataLakeServiceClient) so these remain hard runtime dependencies of the
+    # deployed pipeline even though they are not imported at module load time.
+    "azure-identity>=1.15,<2.0",
+    "azure-storage-file-datalake>=12.14,<13.0",
+    # Non-secret settings resolution (Azure App Configuration / local
+    # --settings-path file) — imported by the sink connector and
+    # run_summary_writer.
+    "simple-azure-utils>=0.2,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.6,<1.0",
+    "mypy>=1.10,<3.0",
+    "pytest>=8.0,<10.0",
+    "pip-audit>=2.7,<3.0",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "src"
+explicit_package_bases = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

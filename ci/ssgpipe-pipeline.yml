@@ -1,0 +1,177 @@
+# Azure DevOps Pipeline — ssgpipe (Workstream E-2, Student/Subject/Grade
+# Reporting Data Pipeline). Per docs/data-engineering-design/2.1_SSGPIPE_SDD.md
+# §14 and docs/development-standards/DEPLOYMENT_STANDARDS.md.
+#
+# PyTIQ Data Engineering track CI/CD — independent of any TIQRIDemo
+# .azuredevops/pipelines/ conventions.
+#
+# Environment topology: single environment (PRD OQ12) — no DEV->QA->PROD
+# promotion machinery; a basic merge-to-deploy gate (all Build stage checks
+# green) is sufficient per DEPLOYMENT_STANDARDS.md rule set (rules 16/18 do
+# not apply, since only one environment exists).
+#
+# Secrets: NONE are declared as plaintext pipeline variables. The container
+# registry push and `az deployment group create` steps authenticate via an
+# Azure DevOps service connection (workload-identity-federated, or backed by
+# a variable group linked to Key Vault) — never a literal secret in this
+# file. The ssgpipe pipeline itself authenticates to ADLS Gen2 exclusively
+# via its Container Apps Job's user-assigned Managed Identity (see
+# infra/ssgpipe/), which this pipeline's deploy step provisions/updates but
+# never issues credentials for.
+
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+variables:
+  # Non-secret pipeline-level values only. Anything secret-shaped lives in
+  # the `ssgpipe-release-variables` variable group (linked to Key Vault) or
+  # the `ssgpipe-azure-connection` service connection — never here.
+  - name: pythonVersion
+    value: '3.12'
+  - name: packageDirectory
+    value: 'src/pytiq'
+  - name: containerImageRepository
+    value: 'ssgpipe'
+  # Set at the project/pipeline level, NOT hardcoded here:
+  #   $(azureServiceConnection)      — Azure DevOps service connection name
+  #   $(containerRegistryConnection) — container registry service connection
+  #   $(resourceGroupName)           — target resource group (non-secret, but env-specific)
+  #   $(appConfigurationName)        — Azure App Configuration store name
+
+stages:
+  # ---------------------------------------------------------------------
+  # Build stage — blocking gates on every merge/PR, per
+  # DEPLOYMENT_STANDARDS.md rules 7-9 (unconditional: this is shared,
+  # production-deployed code).
+  # ---------------------------------------------------------------------
+  - stage: Build
+    displayName: 'Build, Lint, Test, Scan'
+    jobs:
+      - job: BuildAndTest
+        displayName: 'Format / Lint / Type-check / Test / Scan'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: '$(pythonVersion)'
+            displayName: 'Use Python $(pythonVersion)'
+
+          - script: |
+              python -m pip install --upgrade pip
+              pip install -e .[dev]
+            displayName: 'Install dependencies (editable + dev extras, from the committed lock file / pyproject.toml)'
+
+          - script: ruff format --check .
+            displayName: 'ruff format --check (blocking)'
+
+          - script: ruff check .
+            displayName: 'ruff check (blocking)'
+
+          - script: mypy $(packageDirectory)
+            displayName: 'mypy (blocking)'
+
+          - script: pytest --junitxml=$(Build.ArtifactStagingDirectory)/test-results.xml
+            displayName: 'pytest (blocking) — includes ssgpipe connector/transformer/DQ suites once landed'
+
+          - task: PublishTestResults@2
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '$(Build.ArtifactStagingDirectory)/test-results.xml'
+            displayName: 'Publish test results'
+
+          - script: pip install pip-audit && pip-audit
+            displayName: 'Dependency vulnerability scanning (pip-audit) — unconditional blocking gate'
+
+          - task: CredScan@3
+            displayName: 'Secret scanning — unconditional blocking gate'
+            continueOnError: false
+
+  # ---------------------------------------------------------------------
+  # Release stage — build+push container image, deploy/update the
+  # Container Apps Job. Gated on Build succeeding (implicit stage
+  # dependency); single-environment topology, so a basic merge-to-deploy
+  # gate (all Build checks green) is the promotion gate here
+  # (DEPLOYMENT_STANDARDS.md rules 16/18 do not apply — only one
+  # environment exists per SDD §14/PRD OQ12).
+  # ---------------------------------------------------------------------
+  - stage: Release
+    displayName: 'Build Image, Deploy Container Apps Job'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeploySsgpipe
+        displayName: 'Deploy ssgpipe Container Apps Job'
+        environment: 'ssgpipe' # Single Azure DevOps environment — no DEV/QA/PROD stages (PRD OQ12).
+        pool:
+          vmImage: 'ubuntu-latest'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+
+                - task: Docker@2
+                  displayName: 'Build and push ssgpipe container image'
+                  inputs:
+                    containerRegistry: '$(containerRegistryConnection)'
+                    repository: '$(containerImageRepository)'
+                    command: 'buildAndPush'
+                    Dockerfile: '$(packageDirectory)/Dockerfile'
+                    tags: |
+                      $(Build.BuildId)
+                      latest
+
+                - task: AzureCLI@2
+                  displayName: 'Deploy/update infra (Bicep) — Container Apps Job, Managed Identity, RBAC'
+                  inputs:
+                    azureSubscription: '$(azureServiceConnection)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      set -euo pipefail
+                      az deployment group create \
+                        --resource-group "$(resourceGroupName)" \
+                        --template-file infra/ssgpipe/main.bicep \
+                        --parameters infra/ssgpipe/parameters/ssgpipe.parameters.example.json \
+                        --parameters containerImage="$(containerRegistryConnection).azurecr.io/$(containerImageRepository):$(Build.BuildId)" \
+                        --parameters appConfigurationName="$(appConfigurationName)"
+                      # NOTE: substitute --parameters ssgpipe.parameters.json (untracked, real
+                      # values) for the example file in an actual deployment — see
+                      # infra/ssgpipe/README.md. No secret value is passed on this command line.
+
+                - task: AzureCLI@2
+                  displayName: 'Post-deploy health check (manual on-demand run + wait for health signal)'
+                  inputs:
+                    azureSubscription: '$(azureServiceConnection)'
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      set -euo pipefail
+                      # Triggers one on-demand execution of the freshly-deployed Job so its
+                      # own pre-flight health check (source files readable + Managed
+                      # Identity can resolve an ADLS Gen2 token — see runner entry point)
+                      # runs and fails fast here, in CI, rather than at the next scheduled
+                      # trigger (DEPLOYMENT_STANDARDS.md rule 14).
+                      az containerapp job start \
+                        --name "$(az deployment group show -g "$(resourceGroupName)" -n main --query properties.outputs.containerAppsJobName.value -o tsv)" \
+                        --resource-group "$(resourceGroupName)"
+
+# ---------------------------------------------------------------------
+# Rollback (documented, not automated in this file — see
+# DEPLOYMENT_STANDARDS.md rule 15 / infra/ssgpipe/README.md "Rollback"):
+# re-run the Release stage's Docker@2/AzureCLI@2 steps manually with
+# `containerImage` pinned to the previous known-good tag (a prior
+# $(Build.BuildId) value), i.e. redeploy the previous container image tag
+# to the same Container Apps Job. No data migration is required — every
+# ssgpipe run overwrites its own ingestion-date partition idempotently
+# (SDD §7/§9), so rollback is purely a container-image redeploy.
+# ---------------------------------------------------------------------

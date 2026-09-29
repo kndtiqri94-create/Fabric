@@ -1,0 +1,55 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "_comment": "Copy to ssgpipe.parameters.json (untracked) and fill in real values for your subscription/environment before deploying. Do NOT commit a copy of this file containing a real storage account name, subscription ID, tenant ID, or resource ID — placeholders only in the tracked example.",
+  "parameters": {
+    "location": {
+      "value": "<AZURE_REGION>"
+    },
+    "resourceGroupName": {
+      "value": "<RESOURCE_GROUP_NAME>"
+    },
+    "createStorageAccount": {
+      "value": true
+    },
+    "newStorageAccountName": {
+      "value": "<STORAGE_ACCOUNT_NAME>"
+    },
+    "existingStorageAccountName": {
+      "value": "<STORAGE_ACCOUNT_NAME>"
+    },
+    "validContainerName": {
+      "value": "ssgpipe-valid"
+    },
+    "rejectedContainerName": {
+      "value": "ssgpipe-rejected"
+    },
+    "createContainerAppsEnvironment": {
+      "value": true
+    },
+    "existingContainerAppsEnvironmentId": {
+      "value": ""
+    },
+    "containerImage": {
+      "value": "<REGISTRY_LOGIN_SERVER>/ssgpipe:<TAG>"
+    },
+    "scheduleCronExpression": {
+      "value": "0 2 * * *"
+    },
+    "appConfigurationName": {
+      "value": "<APP_CONFIGURATION_STORE_NAME>"
+    },
+    "environmentLabel": {
+      "value": "DEV"
+    },
+    "ownerObjectIds": {
+      "value": []
+    },
+    "tags": {
+      "value": {
+        "workstream": "E-2-ssgpipe",
+        "managedBy": "bicep"
+      }
+    }
+  }
+}

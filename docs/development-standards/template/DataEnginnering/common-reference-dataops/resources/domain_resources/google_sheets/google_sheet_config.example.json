@@ -1,0 +1,11 @@
+{
+  "google_service_account_setting_name": "domain-google-service-account",
+  "spreadsheet_id": "REPLACE_WITH_SPREADSHEET_ID",
+  "worksheets": [
+    {
+      "worksheet_name": "Sheet1",
+      "target_schema": "dbo",
+      "target_table": "replace_with_target_table"
+    }
+  ]
+}

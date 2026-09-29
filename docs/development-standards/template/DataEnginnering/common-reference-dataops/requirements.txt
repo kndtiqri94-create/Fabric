@@ -1,0 +1,9 @@
+polars
+pandas
+requests
+retry
+pyarrow==17.0.0
+simple-azure-utils
+pyodbc
+gspread
+google-auth

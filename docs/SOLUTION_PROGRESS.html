@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Solution Progress</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --text: #1a1d23;
+    --muted: #6b7280;
+    --border: #e3e6ea;
+    --accent: #2f6feb;
+    --done: #1a8a4a;
+    --pending: #d97706;
+    --track: #e9ecef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --panel: #1d2025;
+      --text: #e7e9ec;
+      --muted: #9aa1ac;
+      --border: #2b2f36;
+      --accent: #6ea1ff;
+      --done: #3ecb7c;
+      --pending: #e8a33d;
+      --track: #2a2d33;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 20px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
+  .stat-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .stat-card .label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: .04em; }
+  .stat-card .value { font-size: 1.6rem; font-weight: 600; margin-top: 4px; }
+  .bar {
+    height: 8px;
+    background: var(--track);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .bar > div { height: 100%; background: var(--accent); }
+  .epics { margin-bottom: 22px; }
+  .epic-row { display: grid; grid-template-columns: 220px 1fr 60px; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+  .epic-row .bar { margin-top: 0; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+  .controls input[type="search"] {
+    flex: 1; min-width: 200px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+  .controls select {
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    font-size: 0.9rem;
+  }
+  .count { color: var(--muted); font-size: 0.8rem; margin-left: auto; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 10px; font-size: 0.82rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 0.7rem; letter-spacing: .03em; }
+  tr:last-child td { border-bottom: none; }
+  .status-done { color: var(--done); font-weight: 600; }
+  .status-pending { color: var(--pending); font-weight: 600; }
+  .tag { display: inline-block; background: var(--track); border-radius: 5px; padding: 1px 6px; font-size: 0.72rem; margin-right: 3px; }
+  .weight-pill { display: inline-block; min-width: 22px; text-align: center; background: var(--track); border-radius: 999px; padding: 1px 7px; font-size: 0.75rem; }
+  .empty { padding: 30px; text-align: center; color: var(--muted); }
+  .container { max-width: 1100px; margin: 0 auto; }
+  .table-wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Solution Progress</h1>
+  <div class="meta">Generated 2026-08-24 from docs/SOLUTION_TASKS.md (v0.4)</div>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="label">Completion (by weight)</div>
+      <div class="value" id="statWeightPct">–</div>
+      <div class="bar"><div id="statWeightBar" style="width:0%"></div></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Completion (by task count)</div>
+      <div class="value" id="statCountPct">–</div>
+      <div class="bar"><div id="statCountBar" style="width:0%"></div></div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Tasks done / total</div>
+      <div class="value" id="statTasks">–</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Weight done / total</div>
+      <div class="value" id="statWeight">–</div>
+    </div>
+  </div>
+
+  <div class="epics" id="epicBreakdown"></div>
+
+  <div class="controls">
+    <input type="search" id="search" placeholder="Search by id, title, epic, feature, or surface…">
+    <select id="statusFilter">
+      <option value="all">All statuses</option>
+      <option value="done">Completed only</option>
+      <option value="pending">Not completed only</option>
+    </select>
+    <span class="count" id="resultCount"></span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>ID</th>
+          <th>Surface</th>
+          <th>Epic</th>
+          <th>Feature</th>
+          <th>Title</th>
+          <th>Weight</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="emptyState" style="display:none">No tasks match this filter.</div>
+  </div>
+</div>
+
+<script>
+const TASKS = [
+  {"id":"S-1.1.1","surface":"WEB","title":"Build the role-advert + \"Apply for this role\" form UI (Full name, Email, CV file picker/drag-drop, optional Cover note with 500-char counter) matching the design's default state.","weight":5,"weightDefaulted":false,"epic":"E-1 — HireFlow Job Application Screen (Phase 1)","feature":"F-1.1 Frontend — Job Application Form (WEB, localStorage-only)","completed":true},
+  {"id":"S-1.1.2","surface":"WEB","title":"Implement inline + summary-banner validation for required fields (name, email, CV) and email-format checking, blocking submit while invalid, matching the design's error state and hint styling.","weight":5,"weightDefaulted":false,"epic":"E-1 — HireFlow Job Application Screen (Phase 1)","feature":"F-1.1 Frontend — Job Application Form (WEB, localStorage-only)","completed":true},
+  {"id":"S-1.1.3","surface":"WEB","title":"Implement the submitting state (busy/disabled submit control) and persist a valid application to localStorage (CV captured as name/size metadata only, per PRD Constraints).","weight":3,"weightDefaulted":false,"epic":"E-1 — HireFlow Job Application Screen (Phase 1)","feature":"F-1.1 Frontend — Job Application Form (WEB, localStorage-only)","completed":true},
+  {"id":"S-1.1.4","surface":"WEB","title":"Implement the success/confirmation state (\"Application sent\") with a \"Start again\" reset action, matching the design.","weight":2,"weightDefaulted":false,"epic":"E-1 — HireFlow Job Application Screen (Phase 1)","feature":"F-1.1 Frontend — Job Application Form (WEB, localStorage-only)","completed":true},
+  {"id":"S-1.1.5","surface":"WEB","title":"Implement a visible submit-failure error state with a retry action that re-attempts persistence of the already-entered form data. Failure trigger mechanism to be confirmed per PRD OQ1 before/at start of this story.","weight":3,"weightDefaulted":false,"epic":"E-1 — HireFlow Job Application Screen (Phase 1)","feature":"F-1.1 Frontend — Job Application Form (WEB, localStorage-only)","completed":true},
+  {"id":"S-1.1.6","surface":"WEB","title":"On page load, check localStorage for a previously submitted application and restore the success/confirmation state (instead of the blank form) so a submission survives a reload.","weight":3,"weightDefaulted":false,"epic":"E-1 — HireFlow Job Application Screen (Phase 1)","feature":"F-1.1 Frontend — Job Application Form (WEB, localStorage-only)","completed":true},
+  {"id":"S-1.2.1","surface":"BE","title":"Build a standalone backend project/API to create and retrieve a job application (name, email, CV metadata, optional cover note), following docs/development-standards/BACKEND_STANDARDS.md. Explicitly not called by the frontend in this phase (PRD Non-Goal NG5 / OQ3).","weight":5,"weightDefaulted":false,"epic":"E-1 — HireFlow Job Application Screen (Phase 1)","feature":"F-1.2 Backend — Standalone Job Application Persistence Demo (BE, not integrated with WEB)","completed":false},
+  {"id":"S-2.1.1","surface":"SRC","title":"Build config-driven source connectors for Students, Subjects, and Grades (initially CSV from sample_data/, with source path/type externalized so Azure SQL/Google Sheets can be substituted later without code changes).","weight":5,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.1 Source Connectors & Schema Inspection","completed":false},
+  {"id":"S-2.1.2","surface":"SRC","title":"Inspect each source's actual schema at runtime and identify/map the join keys (student_id Students↔Grades, subject_id Subjects↔Grades) and available columns (e.g. Subjects' subject_code, credits), failing/reporting clearly if an expected key is missing or renamed — do not hard-code column names.","weight":3,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.1 Source Connectors & Schema Inspection","completed":false},
+  {"id":"S-2.2.1","surface":"XFORM","title":"Normalize the Students source's date_of_birth field into a proper date type (no enrollment_date/grade_date fields exist in the confirmed source schema).","weight":3,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.2 Transformation & Combination","completed":false},
+  {"id":"S-2.2.2","surface":"XFORM","title":"Join Students + Subjects + Grades into a single combined dataset on the mapped keys, producing at minimum student_id, first_name, last_name, date_of_birth, gender, email, subject_id, subject_name, subject_code, credits, grade_id, marks, exam_term.","weight":5,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.2 Transformation & Combination","completed":false},
+  {"id":"S-2.3.1","surface":"DQ","title":"Implement configurable data-quality checks that detect and report (never silently drop) required-field/null violations, duplicate records, invalid data types, invalid dates, and invalid/out-of-range marks (outside 0-100 or non-numeric).","weight":8,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.3 Data Quality Validation","completed":false},
+  {"id":"S-2.3.2","surface":"DQ","title":"Implement Student↔Grade and Subject↔Grade referential-integrity checks, reporting Grade rows whose student_id/subject_id has no matching source row.","weight":3,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.3 Data Quality Validation","completed":false},
+  {"id":"S-2.4.1","surface":"SINK","title":"Generate the final combined, validated dataset as a Parquet file with correct types (dates as date/datetime, scores/numeric fields as numeric) at a configurable output location, with partitioning support for larger datasets.","weight":5,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.4 Output & Configuration/Scheduling","completed":false},
+  {"id":"S-2.4.2","surface":"INFRA","title":"Externalize all pipeline configuration (source paths/connection details, join keys, column mappings, output path, DQ thresholds/rules, partitioning, schedule) — none hard-coded.","weight":5,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.4 Output & Configuration/Scheduling","completed":false},
+  {"id":"S-2.4.3","surface":"INFRA","title":"Support on-demand, daily, and weekly execution modes with the schedule configured independently of transformation/DQ logic.","weight":5,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.4 Output & Configuration/Scheduling","completed":false},
+  {"id":"S-2.5.1","surface":"INFRA","title":"Provision cloud infrastructure-as-code for hosting and scheduling common-reference-dataops's runner (compute/hosting model, networking — VNet-first per project Azure convention — TBD by Data Architect/DevOps Developer), including a resourceGroupName parameter and an ownerObjectIds array receiving Owner role assignment on every provisioned Azure resource, per project Azure governance conventions (Prisma-shadow-database clause flagged as likely N/A — see PRD OQ13).","weight":8,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.5 Deployment — Infra, CI/CD & Secrets (`common-reference-dataops`)","completed":true},
+  {"id":"S-2.5.2","surface":"INFRA","title":"Build a CI/CD pipeline that builds, tests (pytest/ruff/mypy per common-reference-dataops/README.md), and deploys the package to the provisioned environment, and keeps its scheduler runner (on-demand/daily/weekly per S-2.4.3) executing unattended. Target CI/CD platform/environment topology TBD — see PRD OQ11/OQ12.","weight":5,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.5 Deployment — Infra, CI/CD & Secrets (`common-reference-dataops`)","completed":true},
+  {"id":"S-2.5.3","surface":"INFRA","title":"Wire deployment-time configuration/secrets (Azure SQL, ADLS storage account, Google Sheets, or any other connection secret) to resolve via Azure App Configuration or an untracked local settings file only, matching the existing package convention documented in common-reference-dataops/README.md — never commit a real credential or settings file.","weight":3,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.5 Deployment — Infra, CI/CD & Secrets (`common-reference-dataops`)","completed":true},
+  {"id":"S-2.6.1","surface":"XFORM","title":"Calculate grade_letter from marks using a configurable grading table (90-100→A+, 80-89→A, 75-79→B+, 70-74→B, 60-69→C+, 50-59→C, below 50→F), evaluated against the actual decimal marks value (no rounding).","weight":3,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.6 Grade Calculation & ADLS Delivery","completed":false},
+  {"id":"S-2.6.2","surface":"DQ","title":"Validate marks is present, numeric, and within 0-100; route invalid records (out-of-range/non-numeric/missing) to a rejected/error record set — never silently drop or assign a grade.","weight":3,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.6 Grade Calculation & ADLS Delivery","completed":false},
+  {"id":"S-2.6.3","surface":"DQ","title":"If a source-provided grade/grade_letter value exists, independently recalculate grade_letter from marks and flag any mismatch rather than trusting the source value.","weight":2,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.6 Grade Calculation & ADLS Delivery","completed":false},
+  {"id":"S-2.6.4","surface":"SINK","title":"Write the final valid, graded, combined dataset as Parquet to Azure Data Lake Storage Gen2, partitioned by ingestion date (year/month/day), authenticating via Managed Identity/Azure Key Vault only — no hard-coded storage account names, keys, SAS tokens, or connection strings.","weight":5,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.6 Grade Calculation & ADLS Delivery","completed":false},
+  {"id":"S-2.6.5","surface":"INFRA","title":"Build a deployable, orchestrated Azure pipeline covering: read sources → validate → join → calculate grade → DQ checks → write valid Parquet → write rejected records → emit execution metrics/logs (specific Azure orchestration service is Data Architect's decision).","weight":8,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.6 Grade Calculation & ADLS Delivery","completed":false},
+  {"id":"S-2.6.6","surface":"INFRA","title":"Emit execution metrics per run: source record counts (Students/Subjects/Grades), successfully transformed count, rejected count, invalid-marks count, missing-join-record count, grade-mismatch count (if source grade values exist), pipeline start/end time, and pipeline status.","weight":3,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.6 Grade Calculation & ADLS Delivery","completed":false},
+  {"id":"S-2.6.7","surface":"DQ","title":"Add automated test coverage for negative marks, marks > 100, null marks, missing student reference, missing subject reference, and duplicate grade records.","weight":5,"weightDefaulted":false,"epic":"E-2 — Student/Subject/Grade Reporting Data Pipeline (Data Engineering) (Phase 1)","feature":"F-2.6 Grade Calculation & ADLS Delivery","completed":false}
+];
+
+function render() {
+  const search = document.getElementById('search').value.trim().toLowerCase();
+  const status = document.getElementById('statusFilter').value;
+
+  const filtered = TASKS.filter(t => {
+    if (status === 'done' && !t.completed) return false;
+    if (status === 'pending' && t.completed) return false;
+    if (!search) return true;
+    const hay = (t.id + ' ' + t.title + ' ' + t.epic + ' ' + t.feature + ' ' + t.surface).toLowerCase();
+    return hay.includes(search);
+  });
+
+  const rowsEl = document.getElementById('rows');
+  rowsEl.innerHTML = filtered.map(t => `
+    <tr>
+      <td class="${t.completed ? 'status-done' : 'status-pending'}">${t.completed ? '✓ Done' : '○ Pending'}</td>
+      <td>${t.id}</td>
+      <td>${t.surface.split('/').map(s => `<span class="tag">${s}</span>`).join('')}</td>
+      <td>${t.epic}</td>
+      <td>${t.feature}</td>
+      <td>${t.title}</td>
+      <td><span class="weight-pill">${t.weight}${t.weightDefaulted ? '*' : ''}</span></td>
+    </tr>
+  `).join('');
+
+  document.getElementById('emptyState').style.display = filtered.length ? 'none' : 'block';
+  document.getElementById('resultCount').textContent = filtered.length + ' of ' + TASKS.length + ' tasks';
+}
+
+function computeStats() {
+  const totalTasks = TASKS.length;
+  const doneTasks = TASKS.filter(t => t.completed).length;
+  const totalWeight = TASKS.reduce((s, t) => s + t.weight, 0);
+  const doneWeight = TASKS.filter(t => t.completed).reduce((s, t) => s + t.weight, 0);
+
+  const weightPct = totalWeight ? Math.round((doneWeight / totalWeight) * 100) : 0;
+  const countPct = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
+
+  document.getElementById('statWeightPct').textContent = weightPct + '%';
+  document.getElementById('statWeightBar').style.width = weightPct + '%';
+  document.getElementById('statCountPct').textContent = countPct + '%';
+  document.getElementById('statCountBar').style.width = countPct + '%';
+  document.getElementById('statTasks').textContent = doneTasks + ' / ' + totalTasks;
+  document.getElementById('statWeight').textContent = doneWeight + ' / ' + totalWeight;
+
+  const epics = {};
+  TASKS.forEach(t => {
+    if (!epics[t.epic]) epics[t.epic] = { done: 0, total: 0 };
+    epics[t.epic].total += t.weight;
+    if (t.completed) epics[t.epic].done += t.weight;
+  });
+
+  const epicEl = document.getElementById('epicBreakdown');
+  epicEl.innerHTML = Object.keys(epics).map(name => {
+    const e = epics[name];
+    const pct = e.total ? Math.round((e.done / e.total) * 100) : 0;
+    return `<div class="epic-row">
+      <div>${name}</div>
+      <div class="bar"><div style="width:${pct}%"></div></div>
+      <div>${pct}%</div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('search').addEventListener('input', render);
+document.getElementById('statusFilter').addEventListener('change', render);
+
+computeStats();
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "_comment": "Non-secret ssgpipe pipeline configuration. Copy to pipeline-settings.json (untracked) for local runs via --settings-path, or set these keys/labels in Azure App Configuration (see infra/ssgpipe/README.md). Values below are placeholders only. NO access keys, connection strings, or SAS tokens are ever placed in this file — ADLS Gen2 auth is Managed Identity only, resolved by ParquetPartitionSinkConnector itself (see src/pytiq/connectors/sink/parquet_partition_sink_connector.py). For the storage account/container setting NAMES themselves, see src/pytiq/connectors/sink/resources/adls_gen2_settings.example.json — this file covers the pipeline-level settings that file does not.",
+  "ssgpipe-source-students-path": "sample_data/students.csv",
+  "ssgpipe-source-subjects-path": "sample_data/subjects.csv",
+  "ssgpipe-source-grades-path": "sample_data/grades.csv",
+  "ssgpipe-join-key-student": "student_id",
+  "ssgpipe-join-key-subject": "subject_id",
+  "ssgpipe-schedule-mode": "daily",
+  "ssgpipe-schedule-timezone": "UTC",
+  "ssgpipe-grading-table": [
+    { "min_inclusive": 90, "max_exclusive": null, "letter": "A+" },
+    { "min_inclusive": 80, "max_exclusive": 90, "letter": "A" },
+    { "min_inclusive": 75, "max_exclusive": 80, "letter": "B+" },
+    { "min_inclusive": 70, "max_exclusive": 75, "letter": "B" },
+    { "min_inclusive": 60, "max_exclusive": 70, "letter": "C+" },
+    { "min_inclusive": 50, "max_exclusive": 60, "letter": "C" },
+    { "min_inclusive": null, "max_exclusive": 50, "letter": "F" }
+  ],
+  "ssgpipe-dq-marks-min": 0,
+  "ssgpipe-dq-marks-max": 100,
+  "ssgpipe-dq-required-fields": [
+    "student_id",
+    "subject_id",
+    "grade_id",
+    "marks"
+  ],
+  "ssgpipe-log-level": "INFO"
+}
